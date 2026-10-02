@@ -44,12 +44,19 @@ def type_into(locator, value: str):
     locator.press_sequentially(value, delay=35)
 
 
+tick_hook = None   # set by sync during a remote "manual login" (see remote.py): called on every wait step
+
+
 def _wait_for(page: Page, cond: Callable[[], bool], seconds: float) -> bool:
     end = time.time() + seconds
     while time.time() < end:
         if _safe(cond):
             return True
-        page.wait_for_timeout(700)
+        if tick_hook:
+            tick_hook(page)
+            page.wait_for_timeout(250)   # snappier refresh while someone is watching
+        else:
+            page.wait_for_timeout(700)
     return False
 
 

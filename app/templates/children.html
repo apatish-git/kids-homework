@@ -100,7 +100,7 @@ function methodChanged(sel) {
       <label>שמות נוספים באתרים (מופרדים בפסיק) <input name="alt_names" placeholder="למשל השם המלא כפי שמופיע בוובטופ"></label>
       <label>צבע <input name="color" type="color" value="{{ next_color }}"></label>
       <button class="primary">הוספת משתמש</button>
-      <div class="note">הסיסמה נשמרת מוצפנת במנהל האישורים של Windows (Credential Manager). היא לא נשמרת בקובץ, ונשלחת רק לאתר שממנו נכנסים (הזדהות משרד החינוך או וובטופ).</div>
+      <div class="note">{% if cred_backend == "keyring" %}הסיסמה נשמרת במנהל הסיסמאות של מערכת ההפעלה (ב־Windows: Credential Manager), ולא בקובץ.{% else %}אין במחשב הזה מנהל סיסמאות, ולכן הסיסמה נשמרת בקובץ <code>data/credentials.json</code>, שרק המשתמש שמריץ את הכלי יכול לקרוא.{% endif %} היא נשלחת רק לאתר שממנו נכנסים (הזדהות משרד החינוך או וובטופ).</div>
     </form>
   </div>
 
@@ -111,16 +111,16 @@ function methodChanged(sel) {
       <label class="row" style="color:var(--ink)"><input type="checkbox" name="daily_enabled" value="1" {{ 'checked' if settings.daily_enabled }}> לסנכרן כל יום בשעה קבועה</label>
       <label>שעה <input name="daily_time" type="time" value="{{ settings.daily_time }}" required></label>
       <div class="note">
-        {% if task and task.next %}✓ מתוזמן ב־Windows. הסנכרון הבא: <b>{{ task.next[8:10] }}/{{ task.next[5:7] }} בשעה {{ task.next[11:16] }}</b>
+        {% if task and task.next %}✓ מתוזמן ב־{{ sched_name }}. הסנכרון הבא: <b>{{ task.next[8:10] }}/{{ task.next[5:7] }} בשעה {{ task.next[11:16] }}</b>
           {% if task.last %}<br>הרצה אחרונה: {{ task.last[8:10] }}/{{ task.last[5:7] }} {{ task.last[11:16] }}{% endif %}
-        {% elif settings.daily_enabled %}הסנכרון היומי מסומן, אבל לא נמצא במתזמן המשימות של Windows. לחץ "שמירה" כדי ליצור אותו.
+        {% elif settings.daily_enabled %}הסנכרון היומי מסומן, אבל לא נמצא ב־{{ sched_name }}. לחץ "שמירה" כדי ליצור אותו.
         {% else %}כבוי.{% endif %}
       </div>
       <label>בנוסף, כשהכלי פתוח: לסנכרן כל כמה שעות (0 = לא)
         <input name="sync_every_hours" type="number" min="0" max="48" value="{{ settings.sync_every_hours }}"></label>
       <button>שמירה</button>
-      <div class="note">הסנכרון היומי רץ דרך מתזמן המשימות של Windows, גם כשחלון הכלי סגור, ובלי לפתוח חלון.
-        אם המחשב היה כבוי או במצב שינה בשעה הזו, הסנכרון ירוץ כשהמחשב יחזור לפעול.
+      <div class="note">הסנכרון היומי רץ דרך {{ sched_name }}, גם כשהכלי סגור, ובלי לפתוח חלון.
+        {% if sched_name == 'cron' %}אם השרת כבוי בשעה הזו, הסנכרון של אותו יום מדולג.{% else %}אם המחשב היה כבוי או במצב שינה בשעה הזו, הסנכרון ירוץ כשהמחשב יחזור לפעול.{% endif %}
         התחברות שדורשת אותך (קוד SMS, "אני לא רובוט") לא יכולה לקרות ברקע. במקרה כזה תופיע התראה בכלי, ותצטרך ללחוץ "התחברות ידנית".</div>
     </form>
   </div>

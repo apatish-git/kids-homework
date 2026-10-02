@@ -6,10 +6,10 @@ from urllib.parse import quote
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from . import credentials, db, sync, winsched
+from . import autosync, credentials, db, remote, sync
 from .sources import SOURCES
 from .sources.base import CATEGORY_LABELS
 
@@ -192,7 +192,8 @@ def children_page(request: Request, msg: str = ""):
     return templates.TemplateResponse(request, "children.html", {
         "children": children, "sources": SOURCES, "settings": load_settings(),
         "next_color": COLORS[len(children) % len(COLORS)],
-        "task": winsched.status(), "msg": msg,
+        "task": autosync.status(), "msg": msg, "sched_name": autosync.system_name(),
+        "cred_backend": credentials.backend_name(),
     })
 
 
@@ -242,7 +243,44 @@ def sync_child(child_id: int, interactive: int = 0, back: str = "/"):
     if not db.get_child(child_id):
         raise HTTPException(404)
     sync.enqueue(child_id, bool(interactive))
+    if interactive and not remote.has_display():
+        return RedirectResponse("/remote", status_code=303)   # no screen here: log in through the remote view
     return RedirectResponse(back if back.startswith("/") else "/", status_code=303)
+
+
+@app.get("/remote")
+def remote_page(request: Request):
+    return templates.TemplateResponse(request, "remote.html", {})
+
+
+@app.get("/remote/state")
+def remote_state():
+    s = remote.state
+    return {"active": s["active"], "child": s["child"], "updated": s["updated"], "size": s["size"],
+            "url": s["url"], "step": sync.status.get("step"), "running": sync.status.get("running")}
+
+
+@app.get("/remote/frame")
+def remote_frame():
+    shot, _ = remote.frame()
+    if not shot:
+        return Response(status_code=204)
+    return Response(shot, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/remote/event")
+async def remote_event(request: Request):
+    e = await request.json()
+    kind = e.get("type")
+    if kind == "click":
+        remote.push(("click", float(e["x"]), float(e["y"])))
+    elif kind == "type" and isinstance(e.get("text"), str):
+        remote.push(("type", e["text"][:500]))
+    elif kind == "key" and e.get("key") in ("Enter", "Backspace", "Tab", "Escape", "ArrowDown", "ArrowUp"):
+        remote.push(("key", e["key"]))
+    elif kind == "scroll":
+        remote.push(("scroll", max(-2000, min(2000, float(e.get("dy", 0))))))
+    return {"ok": True}
 
 
 @app.post("/sync-all")
@@ -260,10 +298,10 @@ def save_settings(sync_every_hours: int = Form(0), daily_enabled: str = Form("")
     SETTINGS_FILE.write_text(json.dumps(s), encoding="utf8")
     schedule(s["sync_every_hours"])
     try:
-        winsched.register(daily_time) if s["daily_enabled"] else winsched.unregister()
+        autosync.register(daily_time) if s["daily_enabled"] else autosync.unregister()
         msg = ""
     except Exception as e:
-        msg = f"לא הצלחתי לעדכן את מתזמן המשימות של Windows: {str(e).splitlines()[0][:200]}"
+        msg = f"לא הצלחתי לעדכן את התזמון ({autosync.system_name()}): {str(e).splitlines()[0][:200]}"
     return RedirectResponse("/children" + (f"?msg={quote(msg)}" if msg else "#schedule"), status_code=303)
 
 

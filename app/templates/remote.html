@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}התחברות ידנית{% endblock %}
+{% block head %}
+<style>
+  .screen { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .screen img { display: block; width: 100%; height: auto; cursor: crosshair; user-select: none; }
+  .wait { padding: 60px 16px; text-align: center; color: var(--muted); }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 12px 0; }
+  .controls input[type=text] { flex: 1; min-width: 200px; }
+  .hint { font-size: 13px; color: var(--muted); }
+  #flash { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border: 2px solid var(--accent);
+           border-radius: 50%; pointer-events: none; display: none; }
+</style>
+{% endblock %}
+{% block body %}
+<h2 style="margin:0 0 6px">התחברות ידנית <span id="who" class="muted" style="font-weight:400"></span></h2>
+<p class="hint">זה הדפדפן שמתחבר בשרת. לוחצים על התמונה כמו על המסך עצמו, למשל כדי לסמן "אני לא רובוט", ומקלידים בתיבה למטה, למשל קוד SMS.
+  כשההתחברות מסתיימת, הסנכרון ממשיך לבד והעמוד הזה מתעדכן.</p>
+<div class="screen" id="screen">
+  <div class="wait" id="wait">מחכה שהדפדפן ייפתח…</div>
+  <img id="img" alt="מסך הדפדפן בשרת" hidden>
+  <div id="flash"></div>
+</div>
+<div class="controls">
+  <input type="text" id="text" placeholder="טקסט להקלדה בשדה שנבחר (קודם לוחצים על השדה בתמונה)" autocomplete="off" dir="auto">
+  <button type="button" class="primary" onclick="sendText()">הקלד</button>
+  <button type="button" onclick="key('Enter')">Enter ⏎</button>
+  <button type="button" onclick="key('Backspace')">מחיקה ⌫</button>
+  <button type="button" onclick="key('Tab')">Tab</button>
+  <button type="button" onclick="scrollBy_(-400)">גלילה למעלה</button>
+  <button type="button" onclick="scrollBy_(400)">גלילה למטה</button>
+</div>
+<div class="hint" id="url"></div>
+<script>
+const img = document.getElementById('img'), wait = document.getElementById('wait');
+let lastUpdated = 0, size = [1280, 900], wasActive = false;
+const post = (body) => fetch('/remote/event', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+
+img.addEventListener('click', (ev) => {
+  const r = img.getBoundingClientRect();
+  const x = (ev.clientX - r.left) * size[0] / r.width, y = (ev.clientY - r.top) * size[1] / r.height;
+  const f = document.getElementById('flash');
+  f.style.left = (ev.clientX - r.left) + 'px'; f.style.top = (ev.clientY - r.top) + 'px'; f.style.display = 'block';
+  setTimeout(() => f.style.display = 'none', 400);
+  post({type: 'click', x, y});
+});
+function sendText() { const t = document.getElementById('text'); if (t.value) { post({type: 'type', text: t.value}); t.value = ''; } }
+document.getElementById('text').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendText(); } });
+function key(k) { post({type: 'key', key: k}); }
+function scrollBy_(dy) { post({type: 'scroll', dy}); }
+
+async function refresh() {
+  try {
+    const s = await (await fetch('/remote/state')).json();
+    document.getElementById('who').textContent = s.child ? '· ' + s.child : '';
+    if (s.active) {
+      wasActive = true; size = s.size[0] ? s.size : size;
+      document.getElementById('url').textContent = s.url ? 'כתובת: ' + s.url : '';
+      if (s.updated && s.updated !== lastUpdated) {
+        lastUpdated = s.updated;
+        img.src = '/remote/frame?t=' + s.updated;
+        img.hidden = false; wait.hidden = true;
+      }
+    } else {
+      img.hidden = true; wait.hidden = false;
+      wait.textContent = wasActive ? 'ההתחברות הסתיימה והסנכרון ממשיך. אפשר לחזור לעמוד הסיכום.'
+                       : (s.running ? 'ממתין לתורו של הסנכרון…' : 'אין כרגע התחברות ידנית פעילה. מתחילים אותה מכפתור "התחברות ידנית" בהגדרות.');
+    }
+  } catch (e) {}
+  setTimeout(refresh, 400);
+}
+refresh();
+</script>
+{% endblock %}

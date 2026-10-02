@@ -1,16 +1,17 @@
-"""Daily sync, started by Windows Task Scheduler (see winsched.py).
+"""Daily sync, started by Windows Task Scheduler or cron (see autosync.py).
 
 If the web app is running, ask it to sync (so two browsers never open the same profile);
 otherwise run the sync right here, in the background. Output goes to data/daily_sync.log.
 """
 import json
 import logging
+import os
 import time
 import urllib.request
 
 from . import db, sync
 
-APP = "http://127.0.0.1:8765"
+APP = f"http://127.0.0.1:{os.environ.get('PORT', '8765')}"
 log = logging.getLogger("daily_sync")
 
 

@@ -10,7 +10,7 @@ import traceback
 
 from playwright.sync_api import sync_playwright
 
-from . import credentials, db, moe_login
+from . import credentials, db, moe_login, remote
 from .moe_login import LoginResult, complete_login
 from .sources import SOURCES
 from .sources.ofek import SchoolNotChosen
@@ -150,16 +150,21 @@ def sync_child(child_id: int, interactive: bool = False):
         password = None   # don't keep retrying a wrong password and get the account locked
     status.update(running=child["name"], step="פותח דפדפן")
     states = []
+    window = interactive and remote.has_display()   # a real browser window on this machine's screen
+    use_remote = interactive and not window         # no screen (Linux server): drive it from the /remote page
 
     with sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(
             str(PROFILES / f"child-{child_id}"),
-            headless=not interactive,
+            headless=not window,
             locale="he-IL",
             # visible window: fit the real screen (a fixed viewport hides the page bottom on scaled displays)
-            **({"no_viewport": True, "args": ["--start-maximized"]} if interactive
+            **({"no_viewport": True, "args": ["--start-maximized"]} if window
                else {"viewport": {"width": 1280, "height": 900}}),
         )
+        if use_remote:
+            remote.start(child["name"])
+            moe_login.tick_hook = remote.tick
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             direct = child["login_method"] == "webtop"
@@ -249,6 +254,8 @@ def sync_child(child_id: int, interactive: bool = False):
                     traceback.print_exc()   # full details stay in the server window
                     db.finish_run(run_id, "error", f"{src.label}: {str(e).splitlines()[0][:200]}")
         finally:
+            moe_login.tick_hook = None
+            remote.stop()
             ctx.close()
 
     login_state = next((s for s in ("bad_credentials", "needs_user", "error") if s in states), "ok")
