@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %}{% if self.title() %} · {% endif %}בית ספר חכם</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f4ef; --card: #ffffff; --ink: #1f2328; --muted: #6b6f76; --line: #e6e2d8;
+    --accent: #3b5bdb; --danger: #d6336c; --warn: #f08c00; --ok: #2b8a3e; --chip: #f1efe8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --card: #202227; --ink: #eceef2; --muted: #9aa0a8; --line: #30333a;
+            --accent: #7c96ff; --chip: #2a2d33; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 Rubik, "Segoe UI", Arial, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .brand { font-weight: 700; font-size: 18px; margin-inline-end: auto; color: var(--ink); }
+  nav a { color: var(--muted); padding: 6px 10px; border-radius: 8px; }
+  nav a.on, nav a:hover { color: var(--ink); background: var(--chip); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger { color: var(--danger); }
+  button:hover { filter: brightness(0.97); }
+  input, select { font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--ink); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .muted { color: var(--muted); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 2px 10px;
+    border-radius: 999px; background: var(--chip); white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  #status { font-size: 13px; color: var(--muted); }
+  #status.busy::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--warn); margin-inline-end: 6px; animation: pulse 1s infinite alternate; }
+  @keyframes pulse { to { opacity: .3; } }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: start; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 500; color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs a { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: var(--card); }
+  .tabs a.on { border-color: var(--ink); font-weight: 500; }
+  .new-tag { display: inline-block; font-size: 11px; font-weight: 700; line-height: 1.5; padding: 0 8px; border-radius: 999px;
+    background: var(--accent); color: #fff; margin-inline-start: 6px; vertical-align: middle; }
+  .nav-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-inline-start: 5px; border-radius: 999px;
+    background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: 1px; }
+  .markall { font-size: 12px; font-weight: 400; padding: 3px 10px; margin-inline-start: auto; }
+</style>
+{% block head %}{% endblock %}
+</head>
+<body>
+<header><div class="bar">
+  <a class="brand" href="/" title="לדף הסיכום">📚 בית ספר חכם</a>
+  <nav>
+    <a href="/" class="{{ 'on' if request.url.path == '/' }}">סיכום</a>
+    {% set unseen = unseen_counts() %}
+    {% macro badge(n, what) %}{% if n %}<span class="nav-badge" title="{{ n }} {{ what }} חדשים">{{ n if n < 100 else '99+' }}</span>{% endif %}{% endmacro %}
+    <a href="/tasks" class="{{ 'on' if request.url.path == '/tasks' }}">משימות{{ badge(unseen.get('task'), 'פריטים') }}</a>
+    <a href="/grades" class="{{ 'on' if request.url.path == '/grades' }}">ציונים{{ badge(unseen.get('grade'), 'ציונים') }}</a>
+    <a href="/notices" class="{{ 'on' if request.url.path == '/notices' }}">התראות{{ badge(unseen.get('notice'), 'פריטים') }}</a>
+    <a href="/children" class="{{ 'on' if request.url.path == '/children' }}">הגדרות</a>
+    <a href="/log" class="{{ 'on' if request.url.path == '/log' }}">יומן סנכרון</a>
+  </nav>
+  <span id="status"></span>
+</div></header>
+<main>{% block body %}{% endblock %}</main>
+<script>
+// one row's checkbox (row element id="t<id>", checkbox has data-id)
+async function toggle(id, done) {
+  document.getElementById('t' + id).classList.toggle('done', done);
+  await fetch(`/tasks/${id}/done`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({done})});
+}
+// "mark all" for the rows inside the nearest [data-group]; pressing again clears them
+async function markAll(btn) {
+  const boxes = [...btn.closest('[data-group]').querySelectorAll('input[data-id]')];
+  const done = !boxes.every(b => b.checked);
+  boxes.forEach(b => { b.checked = done; document.getElementById('t' + b.dataset.id).classList.toggle('done', done); });
+  btn.textContent = done ? 'בטל סימון' : 'סמן הכל';
+  await fetch('/tasks/done-many', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                   body: JSON.stringify({ids: boxes.map(b => +b.dataset.id), done})});
+}
+let wasBusy = false;
+async function poll() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    const el = document.getElementById('status');
+    const busy = !!s.running || s.queued.length > 0;
+    el.className = busy ? 'busy' : '';
+    el.textContent = s.running ? `מסנכרן: ${s.running} · ${s.step}` : (busy ? 'ממתין בתור…' : '');
+    if (wasBusy && !busy) location.reload();
+    wasBusy = busy;
+  } catch (e) {}
+  setTimeout(poll, 2500);
+}
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}משימות{% endblock %}
+{% block head %}
+<style>
+  .top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-inline-end: auto; }
+  .tabs a { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink); background: var(--card); }
+  .tabs a.on { border-color: var(--ink); font-weight: 500; }
+  .alert { border-inline-start: 4px solid var(--warn); margin-bottom: 12px; display: flex; gap: 12px;
+    align-items: center; flex-wrap: wrap; }
+  .alert.bad { border-inline-start-color: var(--danger); }
+  section { margin: 22px 0; }
+  section h2 { font-size: 15px; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+  section h2 .n { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .overdue h2 { color: var(--danger); }
+  .list { display: grid; gap: 8px; }
+  .task { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start;
+    background: var(--card); border: 1px solid var(--line); border-inline-start: 5px solid var(--c);
+    border-radius: 12px; padding: 12px 14px; }
+  .task.submitted { opacity: .6; }
+  .task input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ok); }
+  .task.done .title { text-decoration: line-through; color: var(--muted); }
+  .title { font-weight: 500; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .desc { white-space: pre-wrap; color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .when { text-align: end; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .empty { text-align: center; padding: 50px 16px; }
+  @media (max-width: 600px) { .task { grid-template-columns: auto 1fr; } .when { grid-column: 2; text-align: start; } }
+</style>
+{% endblock %}
+{% block body %}
+{% if not children %}
+  <div class="card empty">
+    <h2>ברוכים הבאים 👋</h2>
+    <p class="muted">כדי להתחיל, צריך להוסיף ילד עם פרטי ההזדהות שלו במשרד החינוך.</p>
+    <a class="btn" href="/children">הוספת משתמש</a>
+  </div>
+{% else %}
+<div class="top">
+  <div class="tabs">
+    <a href="/tasks" class="{{ 'on' if not selected }}">כולם</a>
+    {% for ch in children %}
+      <a href="/tasks?child={{ ch.id }}" class="{{ 'on' if selected == ch.id }}"><span class="dot" style="background:{{ ch.color }}"></span> {{ ch.name }}</a>
+    {% endfor %}
+  </div>
+  {% if selected %}
+    <form method="post" action="/children/{{ selected }}/sync?back=/tasks?child={{ selected }}"><button class="primary">סנכרון עכשיו</button></form>
+  {% else %}
+    <form method="post" action="/sync-all?back=/tasks"><button class="primary">סנכרון כולם</button></form>
+  {% endif %}
+</div>
+
+{% for ch in children if (not selected or selected == ch.id) and ch.login_state in ('needs_user', 'bad_credentials', 'error') %}
+  <div class="card alert {{ 'bad' if ch.login_state == 'bad_credentials' }}">
+    <span class="dot" style="background:{{ ch.color }}"></span>
+    <div style="flex:1">
+      <b>{{ ch.name }}</b>:
+      {% if ch.login_state == 'needs_user' %}ההתחברות האוטומטית נעצרה (כנראה קוד SMS או אימות). צריך להשלים אותה פעם אחת בחלון שייפתח.
+      {% elif ch.login_state == 'bad_credentials' %}משרד החינוך דחה את שם המשתמש או הסיסמה. כדאי לעדכן אותם בעמוד "הגדרות".
+      {% else %}שגיאה בסנכרון האחרון: {{ ch.last_error or '' }}{% endif %}
+    </div>
+    <form method="post" action="/children/{{ ch.id }}/sync?interactive=1"><button>התחברות ידנית</button></form>
+  </div>
+{% endfor %}
+
+{% macro markall_button(items) %}{% if items|length > 3 %}<button type="button" class="markall" onclick="markAll(this)">סמן הכל</button>{% endif %}{% endmacro %}
+{% if hw_notices %}
+<section data-group>
+  <h2>📣 התראות על שיעורי בית <span class="n">{{ hw_notices|length }}</span>
+    <a href="/notices?category=homework{{ '&child=' ~ selected if selected }}" style="font-size:13px;font-weight:400;{{ '' if hw_notices|length > 3 else 'margin-inline-start:auto' }}">לכל ההתראות</a>
+    {{ markall_button(hw_notices) }}</h2>
+  <div class="list">
+    {% for n in hw_notices %}
+    <div class="task" style="--c:{{ n.child_color }}" id="t{{ n.id }}">
+      <input type="checkbox" data-id="{{ n.id }}" title="סמן כטופל" onchange="toggle({{ n.id }}, this.checked)">
+      <div>
+        <div class="title" style="{{ 'font-weight:700' if n.source_status == 'לא נקרא' else 'font-weight:400' }}">{{ n.title }}{% if n.is_new %}<span class="new-tag">חדש</span>{% endif %}</div>
+        <div class="meta">
+          {% if not selected %}<span class="chip"><span class="dot" style="background:{{ n.child_color }}"></span>{{ n.child_name }}</span>{% endif %}
+          <span class="chip">{{ sources[n.source].label if n.source in sources else n.source }}</span>
+        </div>
+        {% if n.description %}<div class="desc">{{ n.description }}</div>{% endif %}
+      </div>
+      <div class="when">{% if n.assigned_date %}{{ n.assigned_date[8:10] }}/{{ n.assigned_date[5:7] }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% set sections = [
+  ('overdue', 'באיחור', '⏰'), ('today', 'להיום', '📌'), ('tomorrow', 'למחר', '➡️'),
+  ('week', 'השבוע', '🗓️'), ('later', 'בהמשך', '🔭'), ('given', 'שיעורי בית שניתנו לאחרונה', '📝'), ('nodate', 'ללא תאריך', '📎'),
+  ('old', 'שיעורי בית ישנים (ניתנו לפני יותר מ־3 שבועות)', '🗄️')] %}
+{% set ns = namespace(total=0) %}
+{% for key, label, icon in sections %}
+  {% set items = buckets[key] %}
+  {% if key != 'old' %}{% set ns.total = ns.total + items|length %}{% endif %}
+  {% if items %}
+  {% if key == 'old' %}<details class="old-wrap"><summary class="muted" style="cursor:pointer;margin:22px 0 0">{{ icon }} {{ label }}: {{ items|length }} (לא נספרות בסיכום)</summary>{% endif %}
+  <section class="{{ key }}" data-group>
+    <h2>{% if key != 'old' %}{{ icon }} {{ label }} <span class="n">{{ open_counts[key] }}{% if open_counts[key] != items|length %} פתוחות מתוך {{ items|length }}{% endif %}</span>{% endif %}
+      {{ markall_button(items) }}</h2>
+    <div class="list">
+      {% for t in items %}
+      <div class="task {{ 'submitted' if (t.source_status or '').startswith('הוגש') }}" style="--c:{{ t.child_color }}" id="t{{ t.id }}">
+        <input type="checkbox" data-id="{{ t.id }}" title="סומן כבוצע" onchange="toggle({{ t.id }}, this.checked)">
+        <div>
+          <div class="title">{% if t.url %}<a href="{{ t.url }}" target="_blank" rel="noopener" style="color:inherit">{{ t.title }}</a>{% else %}{{ t.title }}{% endif %}{% if t.is_new %}<span class="new-tag">חדש</span>{% endif %}</div>
+          <div class="meta">
+            {% if not selected %}<span class="chip"><span class="dot" style="background:{{ t.child_color }}"></span>{{ t.child_name }}</span>{% endif %}
+            {% if t.subject %}<span class="chip">{{ t.subject }}</span>{% endif %}
+            <span class="chip">{{ sources[t.source].label if t.source in sources else t.source }}</span>
+            {% if t.source_status %}<span class="chip">{{ t.source_status }}</span>{% endif %}
+          </div>
+          {% if t.description and t.description != t.title %}<div class="desc">{{ t.description }}</div>{% endif %}
+        </div>
+        <div class="when">
+          {% if t.due_date %}הגשה: {{ t.due_date[8:10] }}/{{ t.due_date[5:7] }}{% endif %}
+          {% if t.assigned_date %}<div>ניתן: {{ t.assigned_date[8:10] }}/{{ t.assigned_date[5:7] }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% if key == 'old' %}</details>{% endif %}
+  {% endif %}
+{% endfor %}
+{% if ns.total == 0 %}
+  <div class="card empty"><h2>אין משימות פתוחות 🎉</h2>
+  <p class="muted">{% if children|selectattr('last_sync')|list %}הכול בוצע, או שהאתרים לא החזירו משימות.{% else %}עדיין לא רץ סנכרון. אפשר ללחוץ על "סנכרון".{% endif %}</p></div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}התראות{% endblock %}
+{% block head %}
+<style>
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .filters a { font-size: 13px; padding: 4px 12px; border-radius: 999px; background: var(--chip); color: var(--ink); }
+  .filters a.on { background: var(--ink); color: var(--bg); }
+  .notice { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; background: var(--card);
+    border: 1px solid var(--line); border-inline-start: 5px solid var(--c); border-radius: 12px; padding: 12px 14px; }
+  .notice.new .title { font-weight: 700; }
+  .notice.done { opacity: .5; }
+  .notice input { width: 20px; height: 20px; margin-top: 2px; }
+  .list { display: grid; gap: 8px; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .when { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .desc { white-space: pre-wrap; color: var(--muted); font-size: 14px; margin-top: 6px; }
+</style>
+{% endblock %}
+{% block body %}
+{% set keep = ('category=' ~ category ~ '&') if category else '' %}
+{% set extra = keep ~ ('show_all=1&' if show_all else '') %}
+{% include "_child_tabs.html" %}
+{% set base = '?' ~ ('child=' ~ selected ~ '&' if selected else '') %}
+<div class="filters">
+  <a href="{{ base }}{{ 'show_all=1' if show_all }}" class="{{ 'on' if not category }}">הכול</a>
+  {% for key, label in categories.items() %}
+    <a href="{{ base }}category={{ key }}{{ '&show_all=1' if show_all }}" class="{{ 'on' if category == key }}">{{ label }}</a>
+  {% endfor %}
+  <span style="margin-inline-start:auto"></span>
+  <a href="{{ base }}{{ 'category=' ~ category ~ '&' if category }}{{ '' if show_all else 'show_all=1' }}">{{ 'הסתר התראות שסומנו' if show_all else 'הצג גם התראות שסומנו' }}</a>
+</div>
+<div data-group>
+{% if notices|length > 3 %}<div style="display:flex;margin-bottom:8px"><button type="button" class="markall" onclick="markAll(this)">סמן הכל</button></div>{% endif %}
+<div class="list">
+  {% for n in notices %}
+  <div class="notice {{ 'new' if n.source_status == 'לא נקרא' }} {{ 'done' if n.done }}" style="--c:{{ n.child_color }}" id="t{{ n.id }}">
+    <input type="checkbox" data-id="{{ n.id }}" title="סמן כטופל" {{ 'checked' if n.done }} onchange="toggle({{ n.id }}, this.checked)">
+    <div>
+      <div class="title">{{ n.title }}{% if n.is_new %}<span class="new-tag">חדש</span>{% endif %}</div>
+      <div class="meta">
+        {% if not selected %}<span class="chip"><span class="dot" style="background:{{ n.child_color }}"></span>{{ n.child_name }}</span>{% endif %}
+        <span class="chip">{{ categories.get(n.category, 'כללי') }}</span>
+        <span class="chip">{{ sources[n.source].label if n.source in sources else n.source }}</span>
+      </div>
+      {% if n.description %}<div class="desc">{{ n.description }}</div>{% endif %}
+    </div>
+    <div class="when">{% if n.assigned_date %}{{ n.assigned_date[8:10] }}/{{ n.assigned_date[5:7] }}{% endif %}</div>
+  </div>
+  {% else %}
+  <div class="card muted">אין התראות{{ ' בקטגוריה הזו' if category }}.</div>
+  {% endfor %}
+</div>
+</div>
+{% endblock %}

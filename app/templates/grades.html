@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}ציונים{% endblock %}
+{% block head %}
+<style>
+  .score { font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .low { color: var(--danger); }
+  td.date { white-space: nowrap; color: var(--muted); }
+  @media (max-width: 600px) { .hide-sm { display: none; } }
+</style>
+{% endblock %}
+{% block body %}
+{% include "_child_tabs.html" %}
+<div class="card">
+  <table>
+    <tr><th>תאריך</th>{% if not selected %}<th>ילד</th>{% endif %}<th>מקצוע</th><th>מה</th><th>ציון</th><th class="hide-sm">מקור</th></tr>
+    {% for g in grades %}
+    {% set num = g.score|int(-1) if g.score else -1 %}
+    <tr>
+      <td class="date">{% if g.assigned_date %}{{ g.assigned_date[8:10] }}/{{ g.assigned_date[5:7] }}/{{ g.assigned_date[2:4] }}{% endif %}</td>
+      {% if not selected %}<td><span class="chip"><span class="dot" style="background:{{ g.child_color }}"></span>{{ g.child_name }}</span></td>{% endif %}
+      <td>{{ g.subject or '' }}</td>
+      <td>{% if g.url %}<a href="{{ g.url }}" target="_blank" rel="noopener" style="color:inherit">{{ g.title }}</a>{% else %}{{ g.title }}{% endif %}{% if g.is_new %}<span class="new-tag">חדש</span>{% endif %}
+        {% if g.description %}<div class="muted" style="font-size:13px">{{ g.description }}</div>{% endif %}</td>
+      <td class="score {{ 'low' if 0 <= num < 60 }}">{{ g.score }}</td>
+      <td class="hide-sm muted">{{ sources[g.source].label if g.source in sources else g.source }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">עדיין אין ציונים. הם יופיעו אחרי הסנכרון הבא.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

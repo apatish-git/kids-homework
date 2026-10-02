@@ -1,0 +1,7 @@
+{# expects: children, selected, and optionally `extra` (query string to keep, e.g. "category=grade&") #}
+<div class="tabs">
+  <a href="?{{ extra or '' }}" class="{{ 'on' if not selected }}">כולם</a>
+  {% for ch in children %}
+    <a href="?{{ extra or '' }}child={{ ch.id }}" class="{{ 'on' if selected == ch.id }}"><span class="dot" style="background:{{ ch.color }}"></span> {{ ch.name }}</a>
+  {% endfor %}
+</div>

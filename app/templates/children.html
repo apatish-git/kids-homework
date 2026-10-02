@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}הגדרות{% endblock %}
+{% block head %}
+<style>
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  form.stack { display: grid; gap: 10px; }
+  form.stack label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  .grid { align-items: start; }
+  .row, form.stack label.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .state-ok { color: var(--ok); } .state-needs_user { color: var(--warn); }
+  .state-bad_credentials, .state-error { color: var(--danger); }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  details summary { cursor: pointer; color: var(--accent); margin-top: 8px; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+</style>
+{% endblock %}
+{% block body %}
+{% macro login_fields(method, username, checked) %}
+  <label>שיטת כניסה
+    <select name="login_method" onchange="methodChanged(this)">
+      <option value="moe" {{ 'selected' if method == 'moe' }}>הזדהות משרד החינוך</option>
+      <option value="webtop" {{ 'selected' if method == 'webtop' }}>משתמש וסיסמה של וובטופ (סמארטסקול בלבד)</option>
+      <option value="none" {{ 'selected' if method == 'none' }}>ללא כניסה (הנתונים מגיעים מחשבון הורה)</option>
+    </select></label>
+  <label class="user-field" {{ 'hidden' if method == 'none' }}><span class="lbl-user">{{ 'שם משתמש בוובטופ' if method == 'webtop' else 'קוד משתמש במשרד החינוך' }}</span>
+    <input name="moe_username" value="{{ username }}" {{ 'required' if method != 'none' }} dir="ltr" autocomplete="off"></label>
+  <div class="note none-note" {{ 'hidden' if method != 'none' }}>הנתונים של הילד יגיעו מחשבון ההורה בוובטופ, לפי השם הפרטי (או לפי "שמות נוספים").</div>
+  <div class="row src-boxes" {{ 'hidden' if method != 'moe' }}>{% for key, s in sources.items() %}
+    <label class="row" style="color:var(--ink)"><input type="checkbox" name="sources" value="{{ key }}" {{ 'checked' if key in checked }}> {{ s.label }}</label>
+  {% endfor %}</div>
+  <div class="note webtop-note" {{ 'hidden' if method != 'webtop' }}>בכניסה דרך וובטופ יש "אני לא רובוט". בפעם הראשונה צריך ללחוץ "התחברות ידנית", לסמן אותו וללחוץ "כניסה". מאז ההתחברות נשמרת.<br>
+    בחשבון הורה, שיעורי הבית של כל ילד משויכים אוטומטית לילד בעל אותו שם פרטי כאן.</div>
+{% endmacro %}
+<script>
+function methodChanged(sel) {
+  const f = sel.form, web = sel.value === 'webtop', none = sel.value === 'none';
+  f.querySelector('.src-boxes').hidden = web || none;
+  f.querySelector('.webtop-note').hidden = !web;
+  f.querySelector('.none-note').hidden = !none;
+  f.querySelector('.user-field').hidden = none;
+  f.querySelector('.user-field input').required = !none;
+  f.querySelectorAll('.pw-field').forEach(el => {
+    el.hidden = none;
+    el.querySelector('input').required = !none && el.dataset.required === '1';
+  });
+  f.querySelector('.lbl-user').textContent = web ? 'שם משתמש בוובטופ' : 'קוד משתמש במשרד החינוך';
+}
+</script>
+<div class="grid">
+{% for ch in children %}
+  <div class="card">
+    <h2><span class="dot" style="background:{{ ch.color }}"></span> {{ ch.name }}</h2>
+    {% if ch.login_method == 'none' %}
+    <div class="muted">ללא כניסה. הנתונים מגיעים {{ 'מהחשבון של ' ~ ch.ss_via_name if ch.ss_via_name else 'מחשבון ההורה (אחרי הסנכרון הבא שלו)' }}</div>
+    {% else %}
+    <div class="muted">{{ 'וובטופ' if ch.login_method == 'webtop' else 'משרד החינוך' }}: {{ ch.moe_username }} · סיסמה {{ 'שמורה ✓' if ch.has_password else 'חסרה ✗' }}</div>
+    <div>מצב: <b class="state-{{ ch.login_state }}">{{ {'ok':'מחובר', 'needs_user':'נדרשת התחברות ידנית', 'bad_credentials':'סיסמה שגויה', 'error':'שגיאה', 'unknown':'טרם סונכרן'}[ch.login_state] }}</b></div>
+    {% if ch.ss_via_name %}<div class="muted">סמארטסקול: דרך החשבון של {{ ch.ss_via_name }}</div>{% endif %}
+    {% endif %}
+    <div class="muted">סנכרון אחרון: {{ ch.last_sync.replace('T', ' ') if ch.last_sync else '—' }}</div>
+    {% if ch.last_error %}<div class="note">{{ ch.last_error }}</div>{% endif %}
+    <div class="row" style="margin-top:12px">
+      <form method="post" action="/children/{{ ch.id }}/sync?back=/children"><button class="primary">סנכרון</button></form>
+      {% if ch.login_method != 'none' %}<form method="post" action="/children/{{ ch.id }}/sync?interactive=1&back=/children"><button title="פותח חלון דפדפן גלוי">התחברות ידנית</button></form>{% endif %}
+      <form method="post" action="/children/{{ ch.id }}/delete" onsubmit="return confirm('למחוק את {{ ch.name }} ואת כל המשימות שלו?')"><button class="danger">מחיקה</button></form>
+    </div>
+    <details>
+      <summary>עריכה</summary>
+      <form class="stack" method="post" action="/children/{{ ch.id }}/update" style="margin-top:10px">
+        <label>שם <input name="name" value="{{ ch.name }}" required></label>
+        {{ login_fields(ch.login_method, ch.moe_username, ch.sources.split(',')) }}
+        <label>שמות נוספים באתרים (מופרדים בפסיק, למשל השם המלא)
+          <input name="alt_names" value="{{ ch.alt_names }}" placeholder="למשל השם המלא כפי שמופיע באתר"></label>
+        {% if ch.login_method != 'webtop' %}
+        <label>בית ספר באופק (אם אופק מבקש לבחור)
+          {% if ch.school_options %}
+          <select name="ofek_school">
+            <option value="">— לא נבחר —</option>
+            {% for s in ch.school_options %}<option {{ 'selected' if s == ch.ofek_school }}>{{ s }}</option>{% endfor %}
+          </select>
+          {% else %}
+          <input name="ofek_school" value="{{ ch.ofek_school }}" placeholder="יתמלא אוטומטית אחרי סנכרון">
+          {% endif %}
+        </label>
+        {% endif %}
+        <label class="pw-field" data-required="0" {{ 'hidden' if ch.login_method == 'none' }}>סיסמה חדשה (להשאיר ריק כדי לא לשנות) <input name="password" type="password" autocomplete="new-password" dir="ltr"></label>
+        <label>צבע <input name="color" type="color" value="{{ ch.color }}"></label>
+        <button>שמירה</button>
+      </form>
+    </details>
+  </div>
+{% endfor %}
+
+  <div class="card">
+    <h2>➕ הוספת משתמש</h2>
+    <form class="stack" method="post" action="/children">
+      <label>שם <input name="name" required></label>
+      {{ login_fields('moe', '', sources.keys()|list) }}
+      <label class="pw-field" data-required="1">סיסמה <input name="password" type="password" required dir="ltr" autocomplete="new-password"></label>
+      <label>שמות נוספים באתרים (מופרדים בפסיק) <input name="alt_names" placeholder="למשל השם המלא כפי שמופיע בוובטופ"></label>
+      <label>צבע <input name="color" type="color" value="{{ next_color }}"></label>
+      <button class="primary">הוספת משתמש</button>
+      <div class="note">הסיסמה נשמרת מוצפנת במנהל האישורים של Windows (Credential Manager). היא לא נשמרת בקובץ, ונשלחת רק לאתר שממנו נכנסים (הזדהות משרד החינוך או וובטופ).</div>
+    </form>
+  </div>
+
+  <div class="card" id="schedule">
+    <h2>⏰ סנכרון אוטומטי</h2>
+    {% if msg %}<div class="note" style="color:var(--danger)">{{ msg }}</div>{% endif %}
+    <form class="stack" method="post" action="/settings">
+      <label class="row" style="color:var(--ink)"><input type="checkbox" name="daily_enabled" value="1" {{ 'checked' if settings.daily_enabled }}> לסנכרן כל יום בשעה קבועה</label>
+      <label>שעה <input name="daily_time" type="time" value="{{ settings.daily_time }}" required></label>
+      <div class="note">
+        {% if task and task.next %}✓ מתוזמן ב־Windows. הסנכרון הבא: <b>{{ task.next[8:10] }}/{{ task.next[5:7] }} בשעה {{ task.next[11:16] }}</b>
+          {% if task.last %}<br>הרצה אחרונה: {{ task.last[8:10] }}/{{ task.last[5:7] }} {{ task.last[11:16] }}{% endif %}
+        {% elif settings.daily_enabled %}הסנכרון היומי מסומן, אבל לא נמצא במתזמן המשימות של Windows. לחץ "שמירה" כדי ליצור אותו.
+        {% else %}כבוי.{% endif %}
+      </div>
+      <label>בנוסף, כשהכלי פתוח: לסנכרן כל כמה שעות (0 = לא)
+        <input name="sync_every_hours" type="number" min="0" max="48" value="{{ settings.sync_every_hours }}"></label>
+      <button>שמירה</button>
+      <div class="note">הסנכרון היומי רץ דרך מתזמן המשימות של Windows, גם כשחלון הכלי סגור, ובלי לפתוח חלון.
+        אם המחשב היה כבוי או במצב שינה בשעה הזו, הסנכרון ירוץ כשהמחשב יחזור לפעול.
+        התחברות שדורשת אותך (קוד SMS, "אני לא רובוט") לא יכולה לקרות ברקע. במקרה כזה תופיע התראה בכלי, ותצטרך ללחוץ "התחברות ידנית".</div>
+    </form>
+  </div>
+</div>
+{% endblock %}

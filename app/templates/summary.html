@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}סיכום{% endblock %}
+{% block head %}
+<style>
+  .viz {
+    --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+    --seq-1: #86b6ef; --seq-2: #3987e5; --seq-3: #1c5cab; --seq-ink: #ffffff;
+    --critical: #d03b3b; --good: #006300; --grid: #e1e0d9; --empty: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz { --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500;
+           --seq-1: #184f95; --seq-2: #256abf; --seq-3: #5598e7; --seq-ink: #ffffff;
+           --critical: #e66767; --good: #0ca30c; --grid: #2c2c2a; --empty: #262624; }
+  }
+  .head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .head h1 { font-size: 22px; margin: 0; margin-inline-end: auto; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .kpi .v { font-size: 34px; font-weight: 700; line-height: 1.1; }
+  .kpi .l { color: var(--muted); font-size: 13px; }
+  .kpi.alert .v { color: var(--critical); }
+  .kids { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .kid { background: var(--card); border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 14px;
+         padding: 14px 16px; display: grid; gap: 8px; color: var(--ink); }
+  .kid:hover { border-color: var(--c); }
+  .kid h3 { margin: 0; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
+  .nums div { background: var(--chip); border-radius: 10px; padding: 6px 2px; }
+  .nums b { display: block; font-size: 20px; }
+  .nums span { font-size: 12px; color: var(--muted); }
+  .nums .bad b { color: var(--critical); }
+  .line { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .line b { color: var(--ink); font-weight: 500; }
+  section.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+  section.panel h2 { font-size: 15px; margin: 0 0 4px; }
+  section.panel .sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  /* load heat-grid */
+  .heat { display: grid; grid-template-columns: 90px repeat(14, minmax(26px, 1fr)); gap: 2px; align-items: center; overflow-x: auto; }
+  .heat .day { text-align: center; font-size: 11px; color: var(--muted); line-height: 1.2; }
+  .heat .day.we { opacity: .6; }
+  .heat .day.now { color: var(--ink); font-weight: 700; }
+  .heat .who { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+  .cell { height: 30px; border-radius: 4px; background: var(--empty); display: grid; place-items: center;
+          font-size: 13px; font-weight: 700; color: var(--seq-ink); }
+  .cell.l1 { background: var(--seq-1); color: var(--ink); } .cell.l2 { background: var(--seq-2); } .cell.l3 { background: var(--seq-3); }
+  .cell:hover { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .scale { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .scale i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; margin-inline-end: 4px; }
+  /* grade bars */
+  .bars { display: grid; gap: 8px; align-content: start; }
+  .gbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 48px; gap: 8px; align-items: center; font-size: 13px; }
+  .gbar .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gbar .track { height: 12px; position: relative; border-inline-start: 1px solid var(--grid); }
+  .gbar .fill { height: 100%; border-radius: 0 4px 4px 0; background: var(--c); }
+  [dir=rtl] .gbar .fill { border-radius: 4px 0 0 4px; }
+  .gbar .val { font-weight: 700; text-align: end; }
+  .gbar .val.low::before { content: "⚠ "; color: var(--critical); }
+  /* notices stacked */
+  .stack { display: grid; grid-template-columns: 90px 1fr 30px; gap: 8px; align-items: center; font-size: 13px; margin-bottom: 8px; }
+  .stack .segs { display: flex; gap: 2px; height: 16px; }
+  .stack .seg { height: 100%; border-radius: 3px; min-width: 4px; }
+  .stack .seg:hover { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-inline-end: 4px; vertical-align: middle; }
+  /* feed */
+  .feed { display: grid; gap: 2px; }
+  .feed a { display: grid; grid-template-columns: 26px auto 1fr auto; gap: 8px; align-items: center; padding: 7px 4px;
+            border-bottom: 1px solid var(--line); color: var(--ink); font-size: 14px; }
+  .feed a:last-child { border-bottom: 0; }
+  .feed .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .feed .d { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 14px; }
+  @media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, 1fr); } .two { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+{% block body %}
+<div class="viz">
+<div class="head">
+  <h1>תמונת מצב</h1>
+  <span class="muted" style="font-size:13px">{% if last_sync %}סנכרון אחרון: {{ last_sync[8:10] }}/{{ last_sync[5:7] }} {{ last_sync[11:16] }}{% else %}עדיין לא היה סנכרון{% endif %}</span>
+  <form method="post" action="/sync-all"><button class="primary">סנכרון כולם</button></form>
+</div>
+
+{% if not kids %}
+  <div class="card empty">אין עדיין משתמשים. אפשר להוסיף בעמוד <a href="/children">הגדרות</a>.</div>
+{% else %}
+<div class="kpis">
+  <a class="kpi" href="/tasks" style="color:inherit"><div class="v">{{ totals.open }}</div><div class="l">משימות פתוחות</div></a>
+  <a class="kpi {{ 'alert' if totals.overdue }}" href="/tasks" style="color:inherit"><div class="v">{% if totals.overdue %}⚠ {% endif %}{{ totals.overdue }}</div><div class="l">באיחור</div></a>
+  <a class="kpi" href="/tasks" style="color:inherit"><div class="v">{{ totals.week }}</div><div class="l">להגשה בשבוע הקרוב</div></a>
+  <a class="kpi" href="/notices" style="color:inherit"><div class="v">{{ totals.new_notices }}</div><div class="l">עדכונים חדשים</div></a>
+</div>
+
+<div class="kids">
+  {% for k in kids %}
+  <a class="kid" href="/tasks?child={{ k.id }}" style="--c:{{ k.color }}">
+    <h3><span class="dot" style="background:{{ k.color }}"></span>{{ k.name }}</h3>
+    <div class="nums">
+      <div><b>{{ k.open }}</b><span>פתוחות</span></div>
+      <div class="{{ 'bad' if k.overdue }}"><b>{% if k.overdue %}⚠ {% endif %}{{ k.overdue }}</b><span>באיחור</span></div>
+      <div><b>{{ k.new_notices }}</b><span>חדשים</span></div>
+    </div>
+    {% if k.old %}<div class="line">ועוד {{ k.old }} שיעורי בית ישנים (מעל 3 שבועות)</div>{% endif %}
+    <div class="line">הבא: {% if k.next_due %}<b>{{ k.next_due.title }}</b> · {{ k.next_due.due_date[8:10] }}/{{ k.next_due.due_date[5:7] }}{% else %}אין הגשות קרובות{% endif %}</div>
+    <div class="line">ציון אחרון: {% if k.last_grade %}<b>{{ k.last_grade.score }}</b> · {{ k.last_grade.subject or k.last_grade.title }}{% else %}—{% endif %}
+      {% if k.avg is not none %} · ממוצע 30 יום <b>{{ k.avg }}</b>{% endif %}</div>
+  </a>
+  {% endfor %}
+</div>
+
+<section class="panel">
+  <h2>עומס הגשות ב־14 הימים הקרובים</h2>
+  <div class="sub">כמה משימות צריך להגיש בכל יום, לכל ילד</div>
+  <div class="heat" role="table" aria-label="עומס הגשות">
+    <div></div>
+    {% for d in days %}<div class="day {{ 'we' if d.weekday() in (4, 5) }} {{ 'now' if loop.first }}">{{ weekday(d) }}<br>{{ d.day }}/{{ d.month }}</div>{% endfor %}
+    {% for k in kids %}
+      <div class="who"><span class="dot" style="background:{{ k.color }}"></span>{{ k.name }}</div>
+      {% for n in k.load %}
+        {% set lvl = 0 if n == 0 else (1 if n == 1 else (2 if n == 2 else 3)) %}
+        <div class="cell l{{ lvl }}" title="{{ k.name }} · {{ days[loop.index0].day }}/{{ days[loop.index0].month }}: {{ n }} משימות">{{ n if n else '' }}</div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+  <div class="scale"><span><i style="background:var(--empty)"></i>אין</span><span><i style="background:var(--seq-1)"></i>1</span><span><i style="background:var(--seq-2)"></i>2</span><span><i style="background:var(--seq-3)"></i>3+</span></div>
+</section>
+
+<div class="two">
+  <section class="panel">
+    <h2>ציונים אחרונים</h2>
+    <div class="sub">10 הציונים האחרונים, מ־0 עד 100</div>
+    {% if recent_grades %}
+    <div class="bars">
+      {% for g in recent_grades %}
+      {% set v = num(g.score) %}
+      <div class="gbar" style="--c:{{ g.child_color }}" title="{{ g.child_name }} · {{ g.subject or '' }} · {{ g.title }} · {{ g.score }}">
+        <div class="lbl"><span class="dot" style="background:{{ g.child_color }}"></span> {{ g.child_name }} · {{ g.subject or g.title }}</div>
+        <div class="track"><div class="fill" style="width:{{ [[v, 0]|max, 100]|min }}%"></div></div>
+        <div class="val {{ 'low' if v < 60 }}">{{ g.score|string|truncate(6, True, '') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="empty">עדיין אין ציונים.</div>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>התראות לפי סוג</h2>
+    <div class="sub">ב־30 הימים האחרונים</div>
+    {% set cat_colors = {'homework': 'var(--cat-1)', 'grade': 'var(--cat-2)', 'attendance': 'var(--cat-3)', 'other': 'var(--cat-4)'} %}
+    {% for k in kids %}
+      {% set total = k.by_category.values()|sum %}
+      <div class="stack">
+        <div class="lbl"><span class="dot" style="background:{{ k.color }}"></span> {{ k.name }}</div>
+        <div class="segs" style="width:{{ (100 * total / max_cat)|round }}%">
+          {% for cat, n in k.by_category.items() if n %}
+            <div class="seg" style="flex:{{ n }};background:{{ cat_colors[cat] }}" title="{{ k.name }} · {{ categories[cat] }}: {{ n }}"></div>
+          {% endfor %}
+        </div>
+        <div><b>{{ total }}</b></div>
+      </div>
+    {% endfor %}
+    <div class="legend">{% for cat, label in categories.items() %}<span><i style="background:{{ cat_colors[cat] }}"></i>{{ label }}</span>{% endfor %}</div>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>עדכונים אחרונים</h2>
+  <div class="sub">מה נכנס לאחרונה, מכל המקורות</div>
+  <div class="feed">
+    {% for t in activity %}
+    {% set icon = {'task': '📝', 'grade': '🎯', 'notice': '📣'}[t.kind] %}
+    <a href="{{ {'task': '/tasks?child=', 'grade': '/grades?child=', 'notice': '/notices?child='}[t.kind] }}{{ t.child_id }}">
+      <span>{{ icon }}</span>
+      <span class="chip"><span class="dot" style="background:{{ t.child_color }}"></span>{{ t.child_name }}</span>
+      <span class="t">{% if t.kind == 'grade' %}<b>{{ t.score }}</b> · {% endif %}{{ t.title }}{% if not t.seen_at %}<span class="new-tag">חדש</span>{% endif %}{% if t.subject and t.kind != 'notice' %} · <span class="muted">{{ t.subject }}</span>{% endif %}</span>
+      <span class="d">{% set dd = t.assigned_date or t.due_date or t.first_seen[:10] %}{{ dd[8:10] }}/{{ dd[5:7] }}</span>
+    </a>
+    {% else %}<div class="empty">אין עדכונים עדיין.</div>{% endfor %}
+  </div>
+</section>
+{% endif %}
+</div>
+{% endblock %}

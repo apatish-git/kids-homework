@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}יומן סנכרון{% endblock %}
+{% block body %}
+<div class="card">
+  <table>
+    <tr><th>זמן</th><th>ילד</th><th>מקור</th><th>סטטוס</th><th>פריטים</th><th>הודעה</th></tr>
+    {% for r in runs %}
+    <tr>
+      <td class="muted">{{ r.started.replace('T', ' ') }}</td>
+      <td>{{ r.child_name or '—' }}</td>
+      <td>{{ r.source }}</td>
+      <td>{{ r.status }}</td>
+      <td>{{ r.found }}</td>
+      <td>{{ r.message or '' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">עדיין לא היו סנכרונים.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% if raw %}
+<details class="card" style="margin-top:16px">
+  <summary>נתונים גולמיים שהתקבלו מהאתרים (לאבחון)</summary>
+  <ul>{% for p in raw %}<li><a href="/raw/{{ p }}" target="_blank" dir="ltr">{{ p }}</a></li>{% endfor %}</ul>
+</details>
+{% endif %}
+{% endblock %}
