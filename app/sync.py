@@ -28,14 +28,14 @@ def enqueue(child_id: int, interactive: bool = False):
         return
     _pending.add(child_id)
     _jobs.put((child_id, interactive))
+    # A child with her own login syncs only her own sources (Smartschool, if it comes from the
+    # parent account, refreshes when that account syncs: directly, "sync all", or daily).
+    # A no-login child has nothing of her own, so her button syncs the parent account(s) instead.
     child = db.get_child(child_id)
-    parent = _smartschool_parent(child) if child else None
-    if parent and not interactive:
-        enqueue(parent["id"])   # this child's Smartschool data comes from the parent account
-    elif child and child["login_method"] == "none":
-        for p in db.list_children():   # not linked yet: any parent account may bring this child
-            if p["login_method"] == "webtop":
-                enqueue(p["id"])
+    if child and child["login_method"] == "none":
+        parent = _smartschool_parent(child)
+        for p in [parent] if parent else [p for p in db.list_children() if p["login_method"] == "webtop"]:
+            enqueue(p["id"])
 
 
 def enqueue_all():

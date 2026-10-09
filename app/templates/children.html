@@ -55,7 +55,7 @@ function methodChanged(sel) {
     {% else %}
     <div class="muted">{{ 'וובטופ' if ch.login_method == 'webtop' else 'משרד החינוך' }}: {{ ch.moe_username }} · סיסמה {{ 'שמורה ✓' if ch.has_password else 'חסרה ✗' }}</div>
     <div>מצב: <b class="state-{{ ch.login_state }}">{{ {'ok':'מחובר', 'needs_user':'נדרשת התחברות ידנית', 'bad_credentials':'סיסמה שגויה', 'error':'שגיאה', 'unknown':'טרם סונכרן'}[ch.login_state] }}</b></div>
-    {% if ch.ss_via_name %}<div class="muted">סמארטסקול: דרך החשבון של {{ ch.ss_via_name }}</div>{% endif %}
+    {% if ch.ss_via_name %}<div class="muted">סמארטסקול: דרך החשבון של {{ ch.ss_via_name }} (מתעדכן כשמסנכרנים את {{ ch.ss_via_name }})</div>{% endif %}
     {% endif %}
     <div class="muted">סנכרון אחרון: {{ ch.last_sync.replace('T', ' ') if ch.last_sync else '—' }}</div>
     {% if ch.last_error %}<div class="note">{{ ch.last_error }}</div>{% endif %}
